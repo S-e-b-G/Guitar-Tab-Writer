@@ -11,7 +11,7 @@ USE:
 ##################
 # STANDARD libraries
 import webbrowser           # For opening the link in the default web browser
-from tkinter import Tk, Text, font, Button, Label, messagebox  # For GUI
+from tkinter import Tk, Text, font, Button  # For GUI
 from pyperclip import copy  # For clipboard copy
 from help_window import HelpWindow  # For the help window
 
@@ -73,7 +73,11 @@ class GuitarTabWriter:
         self.help_button.pack(side="left", pady=(10, 0))
 
         # Create a selectable text zone with the link
-        self.link_text = Text(self.root, font=self.font, height=1, width=40, wrap="none", state="normal")
+        self.link_text = Text(self.root,
+                              font=self.font,
+                              height=1, width=40,
+                              wrap="none",
+                              state="normal")
         self.link_text.pack(side="bottom", fill="x", pady=(10, 0))
         self.link_text.insert("1.0", "https://tabnabber.com/convert_guitar_sheet_music.asp")
         # Disable the possibility to modify the text
@@ -102,14 +106,28 @@ class GuitarTabWriter:
 
         :param event: The key release event.
         """
+        # Get the text zone content
         text = self.text_zone.get('1.0', 'end-1c')
-        cursor_position = self.text_zone.index('insert')
 
+        # Get the cursor position and lines content
+        cursor_position = self.text_zone.index("insert")
+        cursor_row = int(cursor_position.split('.', maxsplit=1)[0]) - 1
+        lines = text.split('\n')
+        current_line = lines[cursor_row]
+        line_length = len(current_line)
+        cursor_col = int(cursor_position.split('.', maxsplit=1)[1])
+
+        # Get the inserted information
         inserted_character = event.char
         inserted_keycode   = event.keycode
         if(inserted_keycode == 54 and event.state & 131116):
             # Corresponds to the "|" character
             inserted_character = '|'
+        elif (inserted_character == '.'):
+            # Make the '.' char behave as '|'
+            inserted_character = '|'
+            current_line = current_line[:cursor_col-1] + '|' + current_line[cursor_col:]
+            lines[cursor_row] = current_line
         # else: no need to do anything
 
         # Display the current keycode, current char, current state
@@ -117,59 +135,45 @@ class GuitarTabWriter:
 
         if (event.state & 0x0001) and (event.keycode == 46):
             # 0x0001 represents the SHIFT key, 46 represents the DEL key
-
-            # Save the current cursor position
-            cursor_position = self.text_zone.index("insert")
-
             # Shift + Del => delete the characters for the current column
-            lines = text.split('\n')
-            # Get position
-            cursor_row = int(cursor_position.split('.', maxsplit=1)[0]) - 1
-            cursor_col = int(cursor_position.split('.', maxsplit=1)[1])
+            self.handle_shift_del(cursor_position, text)
 
-            # Delete characters
-            for i, line in enumerate(lines):
-                if len(line) > cursor_col:
-                    lines[i] = lines[i][:cursor_col] + lines[i][cursor_col + 1:]
-                # else: end of line
-            # end for
+        elif inserted_character.isdigit():
+            # Check if there is a "-" character to the right of the cursor
 
-            # Rebuild text zone
-            self.text_zone.delete('1.0', 'end')
-            self.text_zone.insert('1.0', '\n'.join(lines))
+            # Check if it's the end of line
+            if(cursor_col < line_length):
+                # Not the end of the line: proceed
+                next_char_position = self.text_zone.index('insert')
+                    # Note: Not 'insert + 1c' as the character has already been inserted
+                    # Then: self.text_zone.index('insert') is the character after the one inserted
+                next_char = self.text_zone.get(next_char_position)
+            else:
+                #end of line: make as if next char is 0
+                next_char = '0'
+            #end if
 
-            # Restore the cursor position
-            self.text_zone.mark_set("insert", cursor_position)
-            self.text_zone.see("insert")
+            if next_char != '-':
+                # Not a '-': insert it and add '-' on other lines
+                self.handle_number_input(cursor_position, lines, inserted_character)
+            else:
+                # Next char is '-': Delete it
+                lines[cursor_row] = \
+                    current_line[:cursor_col] + current_line[cursor_col+1:]
+                self.text_zone.delete('1.0', 'end')
+                self.text_zone.insert('1.0', '\n'.join(lines))
 
+                # Restore the cursor position
+                new_cursor_position = \
+                    f"{cursor_row + 1}.{int(cursor_position.split('.', maxsplit=1)[1])}"
+                self.text_zone.mark_set("insert", new_cursor_position)
+                self.text_zone.see("insert")
+            # endif
 
-        elif inserted_character.isdigit() or inserted_character == '-' or inserted_character == '|':
-            # Save the current cursor position
-            cursor_position = self.text_zone.index("insert")
+        elif inserted_character == '-' or inserted_character == '|':
+            self.handle_number_input(cursor_position, lines, inserted_character)
 
-            lines = text.split('\n')
-            cursor_row = (int(cursor_position.split('.', maxsplit=1)[0]))-1
-
-            # Check if the cursor is at the end of the text
-            if cursor_row >= len(lines):
-                cursor_row -= 1
-
-            current_line = lines[cursor_row]
-            line_length = len(current_line)
-
-            for i, _ in enumerate(lines):
-                if i != cursor_row:
-                    if inserted_character == '|':
-                        lines[i] = lines[i] + '|'
-                    else:
-                        lines[i] = lines[i] + ('-' * (line_length-len(lines[i])))
-
-            self.text_zone.delete('1.0', 'end')
-            self.text_zone.insert('1.0', '\n'.join(lines))
-
-            # Restore the cursor position
-            self.text_zone.mark_set("insert", cursor_position)
-            self.text_zone.see("insert")
+        # else not a character to handle
 
         return
     # end of function
@@ -184,6 +188,80 @@ class GuitarTabWriter:
 
         # Set the cursor to the end of the first line
         self.text_zone.mark_set("insert", "1.end")
+        self.text_zone.see("insert")
+
+        return
+    # end of function
+
+
+    def handle_shift_del(self, cursor_position, text):
+        """
+        Handle the Shift + Del key combination.
+
+        :param cursor_position: The current cursor position.
+        :param text: The current text in the text zone.
+        """
+        # Save the current cursor position
+        cursor_position = self.text_zone.index("insert")
+
+        lines = text.split('\n')
+        # Get position
+        # cursor_row = int(cursor_position.split('.', maxsplit=1)[0]) - 1
+        cursor_col = int(cursor_position.split('.', maxsplit=1)[1])
+
+        # Delete characters
+        for i, line in enumerate(lines):
+            if len(line) > cursor_col:
+                lines[i] = lines[i][:cursor_col] + lines[i][cursor_col + 1:]
+            # else: end of line
+        # end for
+
+        # Rebuild text zone
+        self.text_zone.delete('1.0', 'end')
+        self.text_zone.insert('1.0', '\n'.join(lines))
+
+        # Restore the cursor position
+        self.text_zone.mark_set("insert", cursor_position)
+        self.text_zone.see("insert")
+
+        return
+    # end of function
+
+
+    def handle_number_input(self, cursor_position, lines, inserted_character):
+        """
+        Handle the insertion of numbers, "-", or "|" characters.
+
+        :param cursor_position: The current cursor position.
+        :param lines: The lines of the current text in the text zone.
+        :param inserted_character: The character to be inserted.
+        """
+        # Get position
+        cursor_row = int(cursor_position.split('.', maxsplit=1)[0]) - 1
+        cursor_col = int(cursor_position.split('.', maxsplit=1)[1])
+
+        # Update the other lines
+        for i, _ in enumerate(lines):
+            if i != cursor_row:
+                if inserted_character == '|':
+                    lines[i] = lines[i][:cursor_col-1] + '|' + lines[i][cursor_col-1:]
+                    #lines[i] = lines[i] + '|'
+                else:
+                    lines[i] = ( lines[i][:cursor_col-1] +
+                                 '-' +
+                                 lines[i][cursor_col-1:] )
+                    #lines[i] = lines[i] + ('-' * (line_length - len(lines[i])))
+                # endif
+            #else: Current row, nothing to change
+        #end for
+
+        self.text_zone.delete('1.0', 'end')
+        self.text_zone.insert('1.0', '\n'.join(lines))
+
+        # Restore the cursor position
+        new_cursor_position = \
+            f"{cursor_row + 1}.{cursor_col}"
+        self.text_zone.mark_set("insert", new_cursor_position)
         self.text_zone.see("insert")
 
         return
@@ -217,7 +295,7 @@ class GuitarTabWriter:
         webbrowser.open("https://tabnabber.com/convert_guitar_sheet_music.asp")
 
         # Display a success message
-        messagebox.showinfo("Success", "Tab content has been saved and the link has been opened.")
+        # messagebox.showinfo("Success", "Tab content has been saved and the link has been opened.")
 
         return
 

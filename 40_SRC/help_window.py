@@ -16,9 +16,11 @@ from tkinter import Toplevel, Label, Button  # For GUI
 # CONSTANTS
 ###########
 HLP_USE = "Permet d'écrire facilement et rapidement des tablatures."
-HLP_CMD_1 = "Ctrl + DEL:\tSupprime la colonne courante."
-HLP_CMD_2 = "Ctrl + H:\t\tAffiche cette fenêtre."
-HELP_CONTENT = HLP_USE + "\n\n" + HLP_CMD_1 + '\n' + HLP_CMD_2
+HLP_CMD_1 = "        Ctrl + DEL:\tSupprime la colonne courante."
+HLP_CMD_3 = "Shift + Ctrl + DEL:\tRéinitialise la fenêtre."
+HLP_CMD_4 = "                 .:\tInsère | (changement de mesure)."
+HLP_CMD_2 = "        Ctrl + H:\t\tAffiche cette fenêtre."
+HELP_CONTENT = HLP_USE + "\n\n" + HLP_CMD_1 + '\n' + HLP_CMD_3 + '\n' + HLP_CMD_4 + '\n' + HLP_CMD_2
 
 
 
