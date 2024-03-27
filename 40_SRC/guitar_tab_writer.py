@@ -179,7 +179,7 @@ class GuitarTabWriter:
     # end of function
 
 
-    def clear_tab(self, event=None):
+    def clear_tab(self, event=None): # pylint: disable=unused-argument
         """
         Clear the tab by restoring its content to the initial state.
         """
@@ -241,16 +241,19 @@ class GuitarTabWriter:
         cursor_col = int(cursor_position.split('.', maxsplit=1)[1])
 
         # Update the other lines
+        line_len = len(lines[cursor_row])
         for i, _ in enumerate(lines):
             if i != cursor_row:
                 if inserted_character == '|':
                     lines[i] = lines[i][:cursor_col-1] + '|' + lines[i][cursor_col-1:]
                     #lines[i] = lines[i] + '|'
                 else:
-                    lines[i] = ( lines[i][:cursor_col-1] +
-                                 '-' +
-                                 lines[i][cursor_col-1:] )
-                    #lines[i] = lines[i] + ('-' * (line_length - len(lines[i])))
+                    for _ in range(len(lines[i]), line_len):
+                        lines[i] = ( lines[i][:cursor_col-1] +
+                                    '-' +
+                                    lines[i][cursor_col-1:] )
+                        #lines[i] = lines[i] + ('-' * (line_length - len(lines[i])))
+                    # end for
                 # endif
             #else: Current row, nothing to change
         #end for
@@ -300,7 +303,7 @@ class GuitarTabWriter:
         return
 
 
-    def open_help_window(self, event=None):
+    def open_help_window(self, event=None): # pylint: disable=unused-argument
         """
         Open the help window.
         """
