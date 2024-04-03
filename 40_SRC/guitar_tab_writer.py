@@ -25,7 +25,7 @@ FONT_SIZE = 12  # Constant => pylint: disable=C0103
 
 # Guitar Tab
 STRINGS = ['e', 'b', 'g', 'd', 'a', 'e']  # Constant => pylint: disable=C0103
-INITIAL_TAB = '\n'.join([f'{string}|-' for string in STRINGS])  # Constant => pylint: disable=C0103
+INITIAL_TAB = '\n'.join([f'{string}|' for string in STRINGS])  # Constant => pylint: disable=C0103
 
 ##################
 # CLASS DEFINITION
@@ -47,7 +47,7 @@ class GuitarTabWriter:
         self.font = font.Font(family=FONT_FAMILY, size=FONT_SIZE)
 
         # Create a text zone
-        self.text_zone = Text(self.root, font=self.font, height=6)
+        self.text_zone = Text(self.root, font=self.font, width=100, height=6)
         self.text_zone.pack()
 
         # Insert the initial tab
@@ -60,13 +60,35 @@ class GuitarTabWriter:
         # Bind the insert event
         self.text_zone.bind('<KeyRelease>', self.on_key_release)
 
+        # Create a Clear button
+        self.clear_button = Button(self.root, 
+                                   text="Clear", 
+                                   command=self.clear_tab)
+        self.clear_button.pack(side="left", padx=(0, 10), pady=(10, 0))
+
+        # Create a Copy button
+        self.copy_button = Button(  self.root, 
+                                    text="Copy",
+                                    command=self.copy_tab)
+        self.copy_button.pack(side="left", padx=(0, 10), pady=(10, 0))
+
         # Create a Process button
-        self.process_button = Button(self.root, text="Process", command=self.process_tab)
+        self.process_button = Button(self.root, 
+                                     text="Process", 
+                                     command=self.process_tab)
         self.process_button.pack(side="left", padx=(0, 10), pady=(10, 0))
 
-        # Create a Clear button
-        self.clear_button = Button(self.root, text="Clear", command=self.clear_tab)
-        self.clear_button.pack(side="left", padx=(0, 10), pady=(10, 0))
+        # Create a "-1 oct." button
+        self.decrement_octave_button = Button(self.root, 
+                                              text="-1 oct.", 
+                                              command=self.decrement_octave)
+        self.decrement_octave_button.pack(side="left", padx=(0, 10), pady=(10, 0))
+
+        # Create a "+1 oct." button
+        self.increment_octave_button = Button(self.root, 
+                                              text="+1 oct.", 
+                                              command=self.increment_octave)
+        self.increment_octave_button.pack(side="left", padx=(0, 10), pady=(10, 0))
 
         # Create a Help button
         self.help_button = Button(self.root, text="Help", command=self.open_help_window)
@@ -75,7 +97,7 @@ class GuitarTabWriter:
         # Create a selectable text zone with the link
         self.link_text = Text(self.root,
                               font=self.font,
-                              height=1, width=40,
+                              height=1, width=20,
                               wrap="none",
                               state="normal")
         self.link_text.pack(side="bottom", fill="x", pady=(10, 0))
@@ -246,7 +268,7 @@ class GuitarTabWriter:
             if i != cursor_row:
                 if inserted_character == '|':
                     lines[i] = lines[i][:cursor_col-1] + '|' + lines[i][cursor_col-1:]
-                    #lines[i] = lines[i] + '|'
+                    #lines[i] = lines[i] + '|'rh
                 else:
                     for _ in range(len(lines[i]), line_len):
                         lines[i] = ( lines[i][:cursor_col-1] +
@@ -271,13 +293,193 @@ class GuitarTabWriter:
     # end of function
 
 
+    def decrement_octave(self):
+        """
+        Decrement all numbers in the tab by 12.
+        """
+        l_DECR_VAL = 12 # pylint: disable=invalid-name
+        # Get the text from the text zone
+        l_text = self.text_zone.get('1.0', 'end-1c')
+        # Split the text into lines
+        l_lines = l_text.split('\n')
+
+        for l_i, l_line in enumerate(l_lines):
+            # Initialize an empty string to store the new line
+            l_new_line = ''
+            # Initialize a variable to store the previous character
+            l_prev_char = 0
+
+            l_dig_pos = 1   # Digit position in the number
+            for l_char in l_line:
+                # Iterate through each character in the line
+                
+                if l_char.isdigit():
+                    # If the previous character is also a digit,
+                    # it means the current digit is part of a multi-digit number
+                    if( (int(l_char)<=2)    and
+                        (l_dig_pos <= 1)    ):
+                        # First of a 2-digit number
+                        l_dig_pos+=1
+                    else:
+                        # End of the number
+                        l_dig_pos = 1   # Reset for next char
+                        # Decrement the current digit by 12 if it's greater than or equal to 12,
+                        # otherwise replace it with '0'
+                        l_num = int(str(l_prev_char)+l_char)
+                        if l_num <= (9+l_DECR_VAL):
+                            l_new_line += '-'
+                        # else: still a 2-digit number: notheing to do
+                        l_new_line += str(l_num - l_DECR_VAL if l_num >= l_DECR_VAL else '0')
+                        # If new number is a 1-digit number, 
+                        # add a '-' to the new line to preserve the column alignment
+                    #endif
+                else:
+                    # Not a digit, add it to the new line as is
+                    if l_dig_pos > 1:
+                        # Insert the previous digit too (although this should not happen)
+                        l_new_line += '0' # Previous digit -12 is < 0, so insert '0'
+                        l_dig_pos = 1
+                    # else: no previous char to take into account
+                    if l_char == ' ':
+                        l_new_line += '-'
+                    else:
+                        l_new_line += l_char
+                    # endif
+                #endif
+
+                # Update the previous character
+                if l_char.isdigit():
+                    l_prev_char = int(l_char)
+                else:
+                    #Not a digit: change it to 0
+                    l_prev_char = 0
+                    l_dig_pos = 1   # Reset for next char
+                # endif
+            #endfor (characters in the line)
+
+            if l_dig_pos > 1:
+                # In case there would be a last char to process (although this should not happen)
+                l_new_line += '0' # Previous digit -12 is < 0, so insert '0'
+                l_dig_pos = 1
+            # else: no last char to process
+
+            # Replace the original line with the new line
+            l_lines[l_i] = l_new_line
+        #endfor (lines)
+
+        # Clear the text zone and insert the updated text
+        self.text_zone.delete('1.0', 'end')
+        self.text_zone.insert('1.0', '\n'.join(l_lines))
+
+        return
+    # end of function
+
+
+    def increment_octave(self):
+        """
+        Increment all numbers in the tab by 12.
+        """
+        # Constant
+        l_INCR_VAL = 12  # pylint: disable=invalid-name
+
+        # Get the text from the text zone
+        l_text = self.text_zone.get('1.0', 'end-1c')
+        # Split the text into lines
+        l_lines = l_text.split('\n')
+
+        for l_i, l_line in enumerate(l_lines):
+            # Initialize an empty string to store the new line
+            l_new_line = ''
+            # Initialize a variable to store the previous character
+            l_prev_char = 0
+
+            # Initialize digit position in the number
+            l_dig_pos = 1
+            for l_col_nb, l_char in enumerate(l_line):
+                # Iterate through each character in the line
+                l_dash_on_lines = False
+
+                if l_char.isdigit():
+                    # Current char is digit (of a single or multi-digt number)
+                    if ((int(l_char) <= 2) and (l_dig_pos <= 1)):
+                        # First of a 2-digit number
+                        l_dig_pos += 1
+                    else:
+                        # End of the number
+                        if l_dig_pos <= 1:
+                            # A 1-digit number will become a 2-digit number
+                            l_dash_on_lines = True
+                        #else: Was already a 2-digit number: nothing to do
+                        l_dig_pos = 1  # Reset for next char
+                        # Increment the current digit by 12
+                        l_num = int(str(l_prev_char) + l_char)
+                        l_new_line += str(l_num + l_INCR_VAL)
+                    # end if
+                else:
+                    # If the character is not a digit, add it to the new line as is
+                    if l_dig_pos > 1:
+                        # Insert the previous digit too
+                        l_new_line += str(l_prev_char + l_INCR_VAL)
+                        l_dig_pos = 1
+                        l_dash_on_lines = True
+                    # else: no previous char to take into account
+
+                    if l_char == ' ':
+                        l_new_line += '-'
+                    else:
+                        l_new_line += l_char
+                    # end if
+                # end if
+
+                # Update the previous character
+                if l_char.isdigit():
+                    l_prev_char = int(l_char)
+                else:
+                    # Not a digit: change it to 0
+                    l_prev_char = 0
+                    l_dig_pos = 1  # Reset for next char
+                # end if
+                
+                # Add '-' on other lines if needed
+                if l_dash_on_lines:
+                    l_dash_on_lines = False
+                    for l_line_nb, l_line_content in enumerate(l_lines):
+                        # On all lines...
+                        if l_line_nb != l_i:
+                            # ... except the current one, add a '-' on current column position
+                            l_lines[l_line_nb] = (
+                                l_line_content[0:l_col_nb] + '-' + 
+                                l_line_content[l_col_nb:])
+                        # else: current line: nothing to do
+                    #end for
+                #else: no need to add '-'
+            # end for (characters in the line)
+
+            if l_dig_pos > 1:
+                # In case there would be a char to process
+                l_new_line += str(l_prev_char + l_INCR_VAL)
+                l_dig_pos = 1
+            #else: no other char to process
+
+            # Replace the original line with the new line
+            l_lines[l_i] = l_new_line
+        # end for (lines)
+
+        # Clear the text zone and insert the updated text
+        self.text_zone.delete('1.0', 'end')
+        self.text_zone.insert('1.0', '\n'.join(l_lines))
+
+        return
+    # end of function
+
+
+
     ##############################
     # PUBLIC FUNCTIONS
     ##############################
-    def process_tab(self):
+    def copy_tab(self):
         """
-        Process the tab by saving its content to a file, opening a link in the default web browser,
-        and displaying a success message.
+        Copy its content to the clipboard.
         """
         # Get the content of the text zone
         tab_content = self.text_zone.get("1.0", "end-1c")
@@ -294,6 +496,17 @@ class GuitarTabWriter:
         # Copy the tab content to the clipboard
         copy(tab_content)
 
+        return
+
+
+    def process_tab(self):
+        """
+        Process the tab by copying its content to the clipboard and 
+        opening a link in the default web browser.
+        """
+        # Copy the content to the clipboard
+        self.copy_tab()
+
         # Open the link in the default web browser
         webbrowser.open("https://tabnabber.com/convert_guitar_sheet_music.asp")
 
@@ -308,6 +521,7 @@ class GuitarTabWriter:
         Open the help window.
         """
         HelpWindow(self.root)
+        
         return
     # end of function
 
